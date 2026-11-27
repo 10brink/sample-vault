@@ -1,0 +1,19 @@
+# Python virtual environment & caches
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local SQLite vector database, undo manifests & generated demo audio
+data/
+demo_samples/
+*.db
+*.db-shm
+*.db-wal
+
+# OS & editor files
+.DS_Store
+.vscode/
+.idea/
+*.log

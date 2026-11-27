@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark light">
+  <title>Sample Vault — Local Audio ML Search &amp; Auto-Organizer</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header & Semantic Search Bar -->
+    <header class="topbar">
+      <div class="brand-row">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <line x1="3" y1="12" x2="3" y2="12"></line>
+              <line x1="7" y1="8" x2="7" y2="16"></line>
+              <line x1="11" y1="4" x2="11" y2="20"></line>
+              <line x1="15" y1="7" x2="15" y2="17"></line>
+              <line x1="19" y1="10" x2="19" y2="14"></line>
+              <line x1="22" y1="12" x2="22" y2="12"></line>
+            </svg>
+          </span>
+          <div>
+            <h1>SAMPLE VAULT</h1>
+            <p class="subtitle">Local CLAP Audio Search &amp; Auto-Organizer</p>
+          </div>
+        </div>
+
+        <div class="header-meta">
+          <span id="status-pill" class="status-pill" title="ML engine &amp; vector index status">
+            <span class="dot"></span>
+            <span id="status-text">Connecting...</span>
+          </span>
+
+          <div class="header-actions">
+            <button type="button" id="btn-open-folders" class="btn btn-secondary">
+              Folders &amp; Index
+            </button>
+            <button type="button" id="btn-open-organize" class="btn btn-secondary">
+              Auto-Organize
+            </button>
+            <button type="button" id="btn-theme" class="btn btn-icon" title="Switch color theme (Auto / Dark / Light)" aria-label="Switch color theme">
+              <span id="theme-label">Auto</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Deck -->
+      <div class="search-deck">
+        <form id="search-form" class="search-form" autocomplete="off">
+          <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              id="search-input"
+              type="search"
+              placeholder='Describe a sound in plain English — e.g. "punchy acoustic kick", "warm dusty Rhodes chord"'
+              aria-label="Semantic audio search"
+            >
+            <kbd class="kbd-hint" aria-hidden="true">/</kbd>
+          </div>
+          <button type="submit" class="btn btn-primary" id="btn-search">Search</button>
+          <label class="btn btn-drop" for="ref-file-input" title="Upload or drag-and-drop a reference sound to find closest matches">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>Drop Reference</span>
+            <input id="ref-file-input" type="file" accept=".wav,.aif,.aiff,.flac,.ogg,.mp3,.m4a,.opus,.caf,audio/*" hidden>
+          </label>
+        </form>
+
+        <div class="prompt-chips" aria-label="Example searches">
+          <span class="chips-label">Try:</span>
+          <button type="button" class="chip" data-query="punchy acoustic kick">punchy acoustic kick</button>
+          <button type="button" class="chip" data-query="warm dusty Rhodes chord">warm dusty Rhodes chord</button>
+          <button type="button" class="chip" data-query="deep 808 sub bass">deep 808 sub bass</button>
+          <button type="button" class="chip" data-query="gritty acid bassline loop">gritty acid bassline loop</button>
+          <button type="button" class="chip" data-query="lush dreamy ambient pad">lush dreamy ambient pad</button>
+          <button type="button" class="chip" data-query="dusty boom bap drum break">dusty boom bap drum break</button>
+        </div>
+      </div>
+
+      <!-- Live Indexing Progress Banner -->
+      <div id="index-banner" class="index-banner" hidden>
+        <div class="index-banner-top">
+          <span id="index-banner-msg">Indexing...</span>
+          <div class="index-banner-right">
+            <span id="index-banner-count" class="mono"></span>
+            <button type="button" id="btn-cancel-index" class="btn btn-ghost btn-sm">Cancel</button>
+          </div>
+        </div>
+        <div class="index-progress-track">
+          <div id="index-progress-fill" class="index-progress-fill"></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace: Filter Rack + Results List -->
+    <div class="workspace">
+      <aside class="sidebar" aria-label="Library Filters">
+        <section class="filter-group">
+          <h2>Type</h2>
+          <div class="segmented" role="group" aria-label="Sample type filter">
+            <button type="button" class="seg-btn active" data-type="">All <span id="cnt-all" class="count">0</span></button>
+            <button type="button" class="seg-btn" data-type="one-shot">One-Shots <span id="cnt-oneshot" class="count">0</span></button>
+            <button type="button" class="seg-btn" data-type="loop">Loops <span id="cnt-loop" class="count">0</span></button>
+          </div>
+          <label class="check-row">
+            <input type="checkbox" id="filter-favorites">
+            <span>Favorites only</span>
+            <span id="cnt-fav" class="count">0</span>
+          </label>
+        </section>
+
+        <section class="filter-group">
+          <div class="filter-heading-row">
+            <h2>Tempo (BPM)</h2>
+            <button type="button" id="btn-clear-bpm" class="link-btn">Reset</button>
+          </div>
+          <div class="bpm-inputs">
+            <label>
+              <span class="sr-only">Min BPM</span>
+              <input id="filter-bpm-min" type="number" min="40" max="240" step="1" placeholder="Min">
+            </label>
+            <span class="bpm-sep">–</span>
+            <label>
+              <span class="sr-only">Max BPM</span>
+              <input id="filter-bpm-max" type="number" min="40" max="240" step="1" placeholder="Max">
+            </label>
+          </div>
+          <div class="preset-row">
+            <button type="button" class="mini-pill" data-bpm="80,105">80–105</button>
+            <button type="button" class="mini-pill" data-bpm="115,128">115–128</button>
+            <button type="button" class="mini-pill" data-bpm="128,145">128–145</button>
+            <button type="button" class="mini-pill" data-bpm="155,180">155–180</button>
+          </div>
+        </section>
+
+        <section class="filter-group">
+          <h2>Musical Key</h2>
+          <select id="filter-key" aria-label="Filter by musical key">
+            <option value="">All keys</option>
+          </select>
+        </section>
+
+        <section class="filter-group">
+          <div class="filter-heading-row">
+            <h2>Categories</h2>
+            <button type="button" id="btn-clear-cat" class="link-btn" hidden>Clear</button>
+          </div>
+          <ul id="category-list" class="facet-list"></ul>
+        </section>
+
+        <section class="filter-group">
+          <h2>Library Folders</h2>
+          <ul id="sidebar-folder-list" class="facet-list"></ul>
+        </section>
+      </aside>
+
+      <main class="results-pane">
+        <!-- Active Reference / Similar Context Banner -->
+        <div id="context-banner" class="context-banner" hidden>
+          <div class="context-info">
+            <span class="context-badge" id="context-badge">SIMILAR TO</span>
+            <strong id="context-title"></strong>
+            <span id="context-meta" class="mono muted"></span>
+          </div>
+          <button type="button" id="btn-clear-context" class="btn btn-ghost btn-sm">Clear Match</button>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="results-toolbar">
+          <div id="results-summary" class="results-summary">Loading library...</div>
+          <div class="toolbar-controls">
+            <label class="sort-wrap">
+              <span class="muted">Sort</span>
+              <select id="sort-select" aria-label="Sort results">
+                <option value="recent">Recently Indexed</option>
+                <option value="name">Filename A–Z</option>
+                <option value="bpm_asc">BPM Low → High</option>
+                <option value="bpm_desc">BPM High → Low</option>
+                <option value="duration_asc">Shortest First</option>
+                <option value="duration_desc">Longest First</option>
+                <option value="energy_desc">Loudest / Most Punchy</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <!-- Empty State / Onboarding -->
+        <div id="empty-state" class="empty-state" hidden>
+          <div class="empty-card">
+            <h2 id="empty-title">Your sample vault is empty</h2>
+            <p id="empty-desc">Add your Bitwig Studio library, OneKey, Splice, or local sample folders — or index the built-in demo pack to try CLAP semantic search right away.</p>
+            <div class="empty-actions">
+              <button type="button" id="btn-empty-folders" class="btn btn-primary">Add Sample Folders</button>
+              <button type="button" id="btn-empty-demo" class="btn btn-secondary">Index Built-in Demo Pack</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sample Rows -->
+        <div id="sample-list" class="sample-list" role="listbox" aria-label="Audio samples"></div>
+      </main>
+    </div>
+
+    <!-- Bottom Transport Audition Deck -->
+    <footer class="transport-bar" aria-label="Audio audition player">
+      <div class="transport-left">
+        <button type="button" id="btn-play-pause" class="play-main" aria-label="Play or pause" disabled>
+          <svg id="icon-play" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+          <svg id="icon-pause" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" hidden><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+        </button>
+        <button type="button" id="btn-loop-toggle" class="btn btn-icon-toggle" title="Loop audition (L)" aria-pressed="false">
+          Loop
+        </button>
+        <div class="now-playing">
+          <div id="np-title" class="np-title">Select a sample to audition</div>
+          <div id="np-meta" class="np-meta mono">Space: Play · ↑/↓: Audition · L: Loop · F: Favorite</div>
+        </div>
+      </div>
+
+      <div class="transport-center">
+        <span id="time-current" class="mono time-label">0:00</span>
+        <input
+          id="seek-slider"
+          type="range"
+          min="0"
+          max="1000"
+          step="1"
+          value="0"
+          aria-label="Playback position"
+          disabled
+        >
+        <span id="time-total" class="mono time-label">0:00</span>
+      </div>
+
+      <div class="transport-right">
+        <button type="button" id="btn-np-similar" class="btn btn-ghost btn-sm" disabled>Find Similar</button>
+        <button type="button" id="btn-np-finder" class="btn btn-ghost btn-sm" disabled>Finder</button>
+        <label class="volume-wrap">
+          <span class="sr-only">Volume</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.85" aria-label="Volume">
+        </label>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Full-Window Drag-and-Drop Overlay for Reference Sound Search -->
+  <div id="drop-overlay" class="drop-overlay" hidden>
+    <div class="drop-overlay-box">
+      <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M9 18V5l12-2v13"></path>
+        <circle cx="6" cy="18" r="3"></circle>
+        <circle cx="18" cy="16" r="3"></circle>
+      </svg>
+      <h2>Drop a reference sound</h2>
+      <p>Sample Vault will extract its CLAP audio embedding, BPM, and key, and find the closest matches in your library.</p>
+    </div>
+  </div>
+
+  <!-- Native Modal Dialog: Folders & Indexing -->
+  <dialog id="folders-dialog" class="modal" closedby="any" aria-labelledby="folders-dialog-title">
+    <div class="modal-header">
+      <h1 id="folders-dialog-title">Sample Folders &amp; Indexing</h1>
+      <form method="dialog">
+        <button class="btn btn-ghost btn-sm" value="close" aria-label="Close">✕</button>
+      </form>
+    </div>
+    <div class="modal-body">
+      <form id="add-folder-form" class="inline-form">
+        <input id="folder-path-input" type="text" placeholder="/Users/you/Documents/Bitwig Studio/Library" required autofocus>
+        <button type="button" id="btn-pick-folder" class="btn btn-secondary">Browse…</button>
+        <button type="submit" class="btn btn-primary">Add &amp; Index</button>
+      </form>
+      <p id="folder-error" class="form-error" hidden></p>
+
+      <div class="section-block">
+        <div class="section-header">
+          <h2>Watched Folders</h2>
+          <div class="btn-row">
+            <button type="button" id="btn-reindex-all" class="btn btn-secondary btn-sm">Scan New Changes</button>
+            <button type="button" id="btn-force-reindex" class="btn btn-ghost btn-sm">Force Full Re-Index</button>
+          </div>
+        </div>
+        <ul id="modal-folder-list" class="folder-manage-list"></ul>
+      </div>
+
+      <div class="section-block">
+        <h2>Detected Studio &amp; Sample Folders</h2>
+        <div id="common-folders-list" class="detected-grid"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Native Modal Dialog: Auto-Organizer -->
+  <dialog id="organize-dialog" class="modal modal-wide" closedby="any" aria-labelledby="organize-dialog-title">
+    <div class="modal-header">
+      <h1 id="organize-dialog-title">Auto-Organize Sample Library</h1>
+      <form method="dialog">
+        <button class="btn btn-ghost btn-sm" value="close" aria-label="Close">✕</button>
+      </form>
+    </div>
+    <div class="modal-body">
+      <p class="muted">Build a clean, Bitwig-ready folder hierarchy grouped by One-Shots vs. Loops, Instrument Category, BPM, and Musical Key. Symlinks use zero extra disk space and never touch your original files.</p>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Output Folder</span>
+          <div class="inline-form">
+            <input id="org-target-dir" type="text" value="~/Samples/SampleVault_Organized" required autofocus>
+            <button type="button" id="btn-pick-org-dir" class="btn btn-secondary">Browse…</button>
+          </div>
+        </label>
+
+        <label class="field">
+          <span>Folder Layout Template</span>
+          <select id="org-template">
+            <option value="type_category_key">One-Shots &amp; Loops / Category / BPM Bucket</option>
+            <option value="category_type">Category / One-Shots &amp; Loops</option>
+            <option value="key_category">Musical Key / Category</option>
+            <option value="bpm_category">BPM Bucket / Category</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>File Strategy</span>
+          <select id="org-mode">
+            <option value="symlink">Symlinks (Non-destructive, zero disk space)</option>
+            <option value="copy">Copy Files (Standalone portable pack)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" id="btn-org-preview" class="btn btn-secondary">Preview Structure</button>
+        <button type="button" id="btn-org-apply" class="btn btn-primary" disabled>Build Organized Folder</button>
+        <button type="button" id="btn-org-undo" class="btn btn-ghost" hidden>Undo Last Run</button>
+      </div>
+
+      <div id="org-status" class="org-status" hidden></div>
+      <div id="org-preview-box" class="org-preview-box" hidden></div>
+    </div>
+  </dialog>
+
+  <!-- Native Modal Dialog: Sample Inspector / Tag Editor -->
+  <dialog id="inspector-dialog" class="modal" closedby="any" aria-labelledby="inspector-dialog-title">
+    <div class="modal-header">
+      <h1 id="inspector-dialog-title">Sample Inspector</h1>
+      <form method="dialog">
+        <button class="btn btn-ghost btn-sm" value="close" aria-label="Close">✕</button>
+      </form>
+    </div>
+    <div class="modal-body">
+      <div id="insp-filename" class="insp-filename"></div>
+      <div id="insp-path" class="insp-path mono"></div>
+
+      <div class="insp-metrics" id="insp-metrics"></div>
+
+      <form id="inspector-form" class="form-grid">
+        <label class="field">
+          <span>Type</span>
+          <select id="insp-type">
+            <option value="one-shot">One-Shot</option>
+            <option value="loop">Loop</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Category</span>
+          <input id="insp-category" type="text" required>
+        </label>
+        <label class="field">
+          <span>BPM</span>
+          <input id="insp-bpm" type="number" step="0.1" min="20" max="300" placeholder="None">
+        </label>
+        <label class="field">
+          <span>Musical Key</span>
+          <input id="insp-key" type="text" placeholder="e.g. A min">
+        </label>
+        <label class="field field-full">
+          <span>Custom Tags (comma-separated)</span>
+          <input id="insp-custom-tags" type="text" placeholder="favorite, bitwig, analog, kit-01">
+        </label>
+        <div class="field-full modal-footer">
+          <button type="button" id="btn-insp-finder" class="btn btn-secondary">Reveal in Finder</button>
+          <button type="submit" class="btn btn-primary">Save Metadata</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <audio id="audio-player" preload="auto"></audio>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
